@@ -1,264 +1,630 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0">
+
   <title>TRAVEL LOG</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="preconnect"
+    href="https://fonts.googleapis.com">
+
+  <link rel="preconnect"
+    href="https://fonts.gstatic.com"
+    crossorigin>
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
   <header>
     <h1>TRAVEL LOG</h1>
   </header>
 
   <main>
+
     <div class="country-search">
+
       <div class="country-search-box">
         <span class="country-search-icon">⌕</span>
-        <input id="country-search-input" type="search"
+
+        <input
+          id="country-search-input"
+          type="search"
           placeholder="Search Countries..."
-          autocomplete="off" aria-label="Search countries">
+          autocomplete="off"
+          aria-label="Search countries">
       </div>
-      <div id="country-search-results"
-        class="country-search-results" hidden></div>
+
+      <div
+        id="country-search-results"
+        class="country-search-results"
+        hidden>
+      </div>
+
     </div>
 
+
+
     <div class="map-container">
+
       <div class="map-controls">
-        <button id="zoom-in" type="button">＋</button>
-        <button id="zoom-out" type="button">−</button>
-        <button id="zoom-reset" type="button">Reset</button>
+
+        <button
+          id="zoom-in"
+          type="button"
+          aria-label="Zoom in">
+          ＋
+        </button>
+
+        <button
+          id="zoom-out"
+          type="button"
+          aria-label="Zoom out">
+          −
+        </button>
+
+        <button
+          id="zoom-reset"
+          type="button">
+          Reset
+        </button>
+
       </div>
-      <object id="world-map" data="world.svg"
+
+      <object
+        id="world-map"
+        data="world.svg"
         type="image/svg+xml"
-        aria-label="Interactive world map"></object>
+        aria-label="Interactive world map">
+      </object>
+
     </div>
 
     <section class="travel-stats">
+
       <div class="stat-card">
-        <div id="country-count" class="stat-number">0</div>
-        <div class="stat-label">Countries Visited</div>
+
+        <div
+          id="country-count"
+          class="stat-number">
+          0
+        </div>
+
+        <div class="stat-label">
+          Countries Visited
+        </div>
+
       </div>
+
       <div class="stat-card">
-        <div id="world-percent" class="stat-number">0.00%</div>
-        <div class="stat-label">World Visited</div>
+
+        <div
+          id="world-percent"
+          class="stat-number">
+          0.00%
+        </div>
+
+        <div class="stat-label">
+          World Visited
+        </div>
+
       </div>
+
       <div class="stat-card">
-        <div id="travel-days" class="stat-number">0</div>
-        <div class="stat-label">Days Traveled</div>
+
+        <div
+          id="travel-days"
+          class="stat-number">
+          0
+        </div>
+
+        <div class="stat-label">
+          Days Traveled
+        </div>
+
       </div>
+
     </section>
 
+
+  
     <section class="home-journal-section">
-      <h2 class="home-journal-title">YOUR TRAVEL MEMORIES</h2>
+
+      <h2 class="home-journal-title">
+        YOUR TRAVEL MEMORIES
+      </h2>
+
+      
       <div class="travel-sort-bar">
-        <label for="travel-sort-select">Sort by</label>
+
+        <label for="travel-sort-select">
+          Sort by
+        </label>
+
         <select id="travel-sort-select">
-          <option value="updated-new">Recently Updated</option>
-          <option value="updated-old">Oldest Updated</option>
-          <option value="trip-new">Newest Trips</option>
-          <option value="trip-old">Oldest Trips</option>
-          <option value="az">Country A–Z</option>
-          <option value="za">Country Z–A</option>
+
+          <option value="updated-new">
+            Recently Updated
+          </option>
+
+          <option value="updated-old">
+            Oldest Updated
+          </option>
+
+          <option value="trip-new">
+            Newest Trips
+          </option>
+
+          <option value="trip-old">
+            Oldest Trips
+          </option>
+
+          <option value="az">
+            Country A–Z
+          </option>
+
+          <option value="za">
+            Country Z–A
+          </option>
+
         </select>
+
       </div>
-      <div id="home-trip-list" class="home-trip-grid"></div>
+
+    
+      <div
+        id="home-trip-list"
+        class="home-trip-grid">
+      </div>
+
     </section>
+
   </main>
 
-  
-  <div id="journal-prompt" class="modal-overlay" hidden>
-    <div class="prompt-content" role="dialog"
-      aria-modal="true" aria-labelledby="prompt-title">
-      <p id="prompt-country" class="prompt-country"></p>
-      <h2 id="prompt-title">Your Travel Memories</h2>
+
+
+  <div
+    id="journal-prompt"
+    class="modal-overlay"
+    hidden>
+
+    <div
+      class="prompt-content"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="prompt-title">
+
+      <p
+        id="prompt-country"
+        class="prompt-country">
+      </p>
+
+      <h2 id="prompt-title">
+        Your Travel Memories
+      </h2>
 
       <div class="prompt-buttons">
-        <button id="prompt-yes" type="button">
+
+        <button
+          id="prompt-yes"
+          type="button">
           View Memories
         </button>
-        <button id="prompt-create" type="button">
+
+        <button
+          id="prompt-create"
+          type="button">
           Create New Memories
         </button>
-        <button id="prompt-no" type="button">
+
+        <button
+          id="prompt-no"
+          type="button">
           Cancel
         </button>
+
       </div>
 
-      <button id="prompt-recolor" type="button"
-        class="prompt-recolor">Change Map Color</button>
-      <button id="prompt-delete" type="button"
-        class="remove-country-button">Remove from My Map</button>
+      <button
+        id="prompt-recolor"
+        type="button"
+        class="prompt-recolor">
+        Change Map Color
+      </button>
+
+      <button
+        id="prompt-delete"
+        type="button"
+        class="remove-country-button">
+        Remove from My Map
+      </button>
+
     </div>
+
   </div>
 
-  
-  <div id="color-modal" class="modal-overlay" hidden>
-    <div class="color-content" role="dialog"
-      aria-modal="true" aria-labelledby="color-title">
-      <p class="modal-eyebrow">MAKE IT YOURS</p>
-      <h2 id="color-title">Choose Your Color</h2>
-      <p id="color-country" class="color-country"></p>
+
+
+  <div
+    id="color-modal"
+    class="modal-overlay"
+    hidden>
+
+    <div
+      class="color-content"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="color-title">
+
+      <p class="modal-eyebrow">
+        MAKE IT YOURS
+      </p>
+
+      <h2 id="color-title">
+        Choose Your Color
+      </h2>
+
+      <p
+        id="color-country"
+        class="color-country">
+      </p>
+
       <p class="color-description">
         Pick a color to mark this country on your map.
       </p>
 
-      <div id="country-color-options" class="country-color-options">
-        <button class="country-color-option"
-          type="button" data-color="#F36B9A"
-          style="--swatch:#F36B9A" aria-label="Pink"></button>
-        <button class="country-color-option"
-          type="button" data-color="#F47779"
-          style="--swatch:#F47779" aria-label="Coral"></button>
-        <button class="country-color-option"
-          type="button" data-color="#F5A06C"
-          style="--swatch:#F5A06C" aria-label="Orange"></button>
-        <button class="country-color-option"
-          type="button" data-color="#F2CE65"
-          style="--swatch:#F2CE65" aria-label="Yellow"></button>
-        <button class="country-color-option"
-          type="button" data-color="#8BCF82"
-          style="--swatch:#8BCF82" aria-label="Green"></button>
-        <button class="country-color-option"
-          type="button" data-color="#62CFC8"
-          style="--swatch:#62CFC8" aria-label="Turquoise"></button>
-        <button class="country-color-option"
-          type="button" data-color="#76B6F2"
-          style="--swatch:#76B6F2" aria-label="Blue"></button>
-        <button class="country-color-option"
-          type="button" data-color="#B08AE8"
-          style="--swatch:#B08AE8" aria-label="Purple"></button>
+
+      
+      <div
+        id="country-color-options"
+        class="country-color-options">
+
+        <button
+          class="country-color-option"
+          type="button"
+          data-color="#F36B9A"
+          style="--swatch:#F36B9A"
+          aria-label="Pink">
+        </button>
+
+        <button
+          class="country-color-option"
+          type="button"
+          data-color="#F47779"
+          style="--swatch:#F47779"
+          aria-label="Coral">
+        </button>
+
+        <button
+          class="country-color-option"
+          type="button"
+          data-color="#F5A06C"
+          style="--swatch:#F5A06C"
+          aria-label="Orange">
+        </button>
+
+        <button
+          class="country-color-option"
+          type="button"
+          data-color="#F2CE65"
+          style="--swatch:#F2CE65"
+          aria-label="Yellow">
+        </button>
+
+        <button
+          class="country-color-option"
+          type="button"
+          data-color="#8BCF82"
+          style="--swatch:#8BCF82"
+          aria-label="Green">
+        </button>
+
+        <button
+          class="country-color-option"
+          type="button"
+          data-color="#62CFC8"
+          style="--swatch:#62CFC8"
+          aria-label="Turquoise">
+        </button>
+
+        <button
+          class="country-color-option"
+          type="button"
+          data-color="#76B6F2"
+          style="--swatch:#76B6F2"
+          aria-label="Blue">
+        </button>
+
+        <button
+          class="country-color-option"
+          type="button"
+          data-color="#B08AE8"
+          style="--swatch:#B08AE8"
+          aria-label="Purple">
+        </button>
+
       </div>
 
-      <button id="color-save" type="button"
-        class="save-button">Save Color</button>
-      <button id="color-cancel" type="button"
-        class="color-cancel">Cancel</button>
+      <button
+        id="color-save"
+        type="button"
+        class="save-button">
+        Save Color
+      </button>
+
+      <button
+        id="color-cancel"
+        type="button"
+        class="color-cancel">
+        Cancel
+      </button>
+
     </div>
+
   </div>
 
+
   
-  <div id="travel-modal" class="modal-overlay" hidden>
-    <div class="modal-content" role="dialog"
-      aria-modal="true" aria-labelledby="modal-title">
+  <div
+    id="travel-modal"
+    class="modal-overlay"
+    hidden>
+
+    <div
+      class="modal-content"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title">
+
       <div class="modal-header">
+
         <div>
-          <p class="modal-eyebrow">TRAVEL JOURNAL</p>
+
+          <p class="modal-eyebrow">
+            TRAVEL JOURNAL
+          </p>
+
           <h2 id="modal-title"></h2>
+
         </div>
-        <button id="close-modal" type="button"
-          class="close-button" aria-label="Close">×</button>
+
+        <button
+          id="close-modal"
+          type="button"
+          class="close-button"
+          aria-label="Close">
+          ×
+        </button>
+
       </div>
 
+
+     
       <section id="saved-trips-section">
-        <h3 class="section-title">Saved Memories</h3>
-        <div id="trip-list" class="trip-list"></div>
+
+        <h3 class="section-title">
+          Saved Memories
+        </h3>
+
+        <div
+          id="trip-list"
+          class="trip-list">
+        </div>
+
       </section>
 
-      <button id="modal-delete-country" type="button"
+      <button
+        id="modal-delete-country"
+        type="button"
         class="remove-country-button">
         Remove from My Map
       </button>
+
     </div>
+
   </div>
 
+
   
-  <div id="diary-viewer" class="diary-viewer-overlay" hidden>
-    <div id="diary-book" class="diary-book" role="dialog"
-      aria-modal="true" aria-label="Travel diary">
+  <div
+    id="diary-viewer"
+    class="diary-viewer-overlay"
+    hidden>
 
-      <button id="close-diary-viewer"
-        class="diary-viewer-close" type="button"
-        aria-label="Close diary">×</button>
+    <div
+      id="diary-book"
+      class="diary-book"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Travel diary">
 
+      <button
+        id="close-diary-viewer"
+        class="diary-viewer-close"
+        type="button"
+        aria-label="Close diary">
+        ×
+      </button>
 <div class="diary-edit-actions">
+
   <button id="diary-edit" type="button" hidden>
-    EDIT
+    Edit
+  </button>
+
+  <button id="diary-delete" type="button" hidden>
+    Delete
   </button>
 
   <button id="diary-cancel" type="button" hidden>
     Cancel
   </button>
 
-  <button id="diary-delete" type="button" hidden>
-    Delete
-  </button>
 </div>
 
-      <!-- LEFT PAGE -->
+     
       <div class="diary-page diary-page-left">
-        <p class="diary-page-label">MY TRAVEL JOURNAL</p>
+
+        <p class="diary-page-label">
+          MY TRAVEL JOURNAL
+        </p>
+
         <h2 id="viewer-country"></h2>
 
-        <p id="viewer-date" class="diary-viewer-date"></p>
 
-        <div id="editor-dates" class="diary-editor-dates" hidden>
+        
+        <p
+          id="viewer-date"
+          class="diary-viewer-date">
+        </p>
+
+
+        
+        <div
+          id="editor-dates"
+          class="diary-editor-dates"
+          hidden>
+
           <label>
             Start Date *
-            <input id="editor-start" type="date">
+            <input
+              id="editor-start"
+              type="date">
           </label>
+
           <label>
             End Date *
-            <input id="editor-end" type="date">
+            <input
+              id="editor-end"
+              type="date">
           </label>
+
         </div>
 
-        <div class="diary-divider">✦ ✧ ✦</div>
+        <div class="diary-divider">
+          ✦ ✧ ✦
+        </div>
 
-        <p id="viewer-city" class="diary-viewer-city"></p>
 
-        <label id="editor-city-wrap"
-          class="diary-editor-label" hidden>
+        
+        <p
+          id="viewer-city"
+          class="diary-viewer-city">
+        </p>
+
+
+        
+        <label
+          id="editor-city-wrap"
+          class="diary-editor-label"
+          hidden>
+
           City / Places Visited
-          <input id="editor-city" type="text"
+
+          <input
+            id="editor-city"
+            type="text"
             placeholder="e.g. Paris, Lyon...">
+
         </label>
 
-        <div id="viewer-text" class="diary-viewer-text"></div>
 
-        <label id="editor-text-wrap"
-          class="diary-editor-label diary-editor-story" hidden>
+        
+        <div
+          id="viewer-text"
+          class="diary-viewer-text">
+        </div>
+
+
+        
+        <label
+          id="editor-text-wrap"
+          class="diary-editor-label diary-editor-story"
+          hidden>
+
           Dear Diary... *
-          <textarea id="editor-text"
-            placeholder="Tell the story of your journey..."></textarea>
+
+          <textarea
+            id="editor-text"
+            placeholder="Tell the story of your journey...">
+          </textarea>
+
         </label>
 
-        <p id="editor-message" class="diary-editor-message"
-          role="status" hidden></p>
 
-        <button id="editor-save" type="button"
-          class="diary-editor-save" hidden>
+        
+        <p
+          id="editor-message"
+          class="diary-editor-message"
+          role="status"
+          hidden>
+        </p>
+
+
+        
+        <button
+          id="editor-save"
+          type="button"
+          class="diary-editor-save"
+          hidden>
           Save My Memories
         </button>
 
-        <p class="diary-page-footer">
-        </p>
+        <p class="diary-page-footer"></p>
+
       </div>
 
-     
-      <div class="diary-page diary-page-right">
-        <div id="diary-photo-gallery"
-          class="diary-photo-gallery"></div>
 
-        <label id="editor-photo-control"
-          class="diary-photo-upload" hidden>
+      
+      <div class="diary-page diary-page-right">
+
+        <div
+          id="diary-photo-gallery"
+          class="diary-photo-gallery">
+        </div>
+
+
+       
+        <label
+          id="editor-photo-control"
+          class="diary-photo-upload"
+          hidden>
+
           ＋ Add Photos
-          <input id="editor-photos" type="file"
-            accept="image/*" multiple>
+
+          <input
+            id="editor-photos"
+            type="file"
+            accept="image/*"
+            multiple>
+
         </label>
 
-        <p id="editor-photo-count"
-          class="diary-photo-count" hidden></p>
 
-        <p class="diary-photo-caption">
+        
+        <p
+          id="editor-photo-count"
+          class="diary-photo-count"
+          hidden>
         </p>
+
+        <p class="diary-photo-caption"></p>
+
       </div>
+
     </div>
+
   </div>
 
+
+  
   <script src="main.js"></script>
+
 </body>
+
 </html>

@@ -1,7 +1,7 @@
 'use strict';
 const $ = id => document.getElementById(id);
-
 const WORLD_COUNTRIES = 195;
+
 const VISITED_KEY = 'visitedCountries';
 const TRIPS_KEY = 'travelLogTrips';
 const COLORS_KEY = 'travelLogCountryColors';
@@ -29,7 +29,11 @@ const SHORT_NAMES = {
   'Iran (Islamic Republic of)': 'Iran',
   'Bolivia (Plurinational State of)': 'Bolivia',
   'Venezuela (Bolivarian Republic of)': 'Venezuela',
-  'United Republic of Tanzania': 'Tanzania'
+  'United Republic of Tanzania': 'Tanzania',
+  'Lao PDR': 'Laos',
+  'Dem. Rep. Korea': 'North Korea',
+  'Macedonia': 'North Macedonia',
+  'Swaziland': 'Eswatini'
 };
 
 function loadJSON(key, fallback) {
@@ -46,9 +50,17 @@ let visitedCountries = loadJSON(VISITED_KEY, []);
 let trips = loadJSON(TRIPS_KEY, {});
 let countryColors = loadJSON(COLORS_KEY, {});
 
-if (!Array.isArray(visitedCountries)) visitedCountries = [];
-if (!trips || typeof trips !== 'object' || Array.isArray(trips)) trips = {};
-if (!countryColors || typeof countryColors !== 'object' || Array.isArray(countryColors)) countryColors = {};
+if (!Array.isArray(visitedCountries)) {
+  visitedCountries = [];
+}
+
+if (!trips || typeof trips !== 'object' || Array.isArray(trips)) {
+  trips = {};
+}
+
+if (!countryColors || typeof countryColors !== 'object' || Array.isArray(countryColors)) {
+  countryColors = {};
+}
 
 visitedCountries = [...new Set(
   visitedCountries.filter(id => typeof id === 'string')
@@ -63,16 +75,22 @@ function saveData() {
     localStorage.setItem(TRIPS_KEY, JSON.stringify(trips));
     localStorage.setItem(COLORS_KEY, JSON.stringify(countryColors));
     return true;
+
   } catch (error) {
     console.error(error);
+
     keys.forEach((key, index) => {
       try {
-        if (old[index] === null) localStorage.removeItem(key);
-        else localStorage.setItem(key, old[index]);
+        if (old[index] === null) {
+          localStorage.removeItem(key);
+        } else {
+          localStorage.setItem(key, old[index]);
+        }
       } catch (e) {
         console.error(e);
       }
     });
+
     return false;
   }
 }
@@ -85,25 +103,34 @@ const diaryViewer = $('diary-viewer');
 
 let svgRoot = null;
 let mapInitialized = false;
+
 let countryGroups = new Map();
 let countryNames = new Map();
 
 let activeCountryId = null;
 let activeCountryName = '';
+
 let selectedCountryId = null;
 let selectedCountryName = '';
+
 let colorCountryId = null;
 let colorCountryName = '';
+
 let selectedColor = COLORS[0];
 
 let editorCountryId = null;
-let viewerRecord = null;
-let editingRecord = null;
 let editorPhotos = [];
 let editorLoading = false;
+
 let travelSortMode = 'updated-new';
 
-let originalView = { x: 0, y: 0, w: 2000, h: 857 };
+let originalView = {
+  x: 0,
+  y: 0,
+  w: 2000,
+  h: 857
+};
+
 let currentView = { ...originalView };
 let dragState = null;
 let suppressClick = false;
@@ -111,7 +138,11 @@ let suppressClick = false;
 function makeElement(tag, className = '', content) {
   const element = document.createElement(tag);
   element.className = className;
-  if (content !== undefined) element.textContent = content;
+
+  if (content !== undefined) {
+    element.textContent = content;
+  }
+
   return element;
 }
 
@@ -124,19 +155,25 @@ function getTripRecords(id) {
 }
 
 function isVisited(id) {
-  return visitedCountries.includes(id) || getTripRecords(id).length > 0;
+  return visitedCountries.includes(id) ||
+    getTripRecords(id).length > 0;
 }
 
 function getVisitedIds() {
   const ids = new Set(visitedCountries);
+
   Object.entries(trips).forEach(([id, records]) => {
-    if (Array.isArray(records) && records.length) ids.add(id);
+    if (Array.isArray(records) && records.length) {
+      ids.add(id);
+    }
   });
+
   return ids;
 }
 
 function updateBodyLock() {
-  document.body.classList.toggle('modal-open',
+  document.body.classList.toggle(
+    'modal-open',
     [promptModal, colorModal, travelModal, diaryViewer]
       .some(modal => !modal.hidden)
   );
@@ -152,18 +189,29 @@ function hideModal(modal) {
   updateBodyLock();
 }
 
+/* DATE CALCULATION */
+
 function parseDateUTC(value) {
-  if (typeof value !== 'string' ||
-      !/^\d{4}-\d{2}-\d{2}$/.test(value)) return NaN;
+  if (
+    typeof value !== 'string' ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(value)
+  ) {
+    return NaN;
+  }
 
   const [year, month, day] = value.split('-').map(Number);
   const date = new Date(0);
+
   date.setUTCFullYear(year, month - 1, day);
   date.setUTCHours(0, 0, 0, 0);
 
-  if (date.getUTCFullYear() !== year ||
-      date.getUTCMonth() !== month - 1 ||
-      date.getUTCDate() !== day) return NaN;
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return NaN;
+  }
 
   return date.getTime();
 }
@@ -171,7 +219,11 @@ function parseDateUTC(value) {
 function calculateDays(start, end) {
   const a = parseDateUTC(start);
   const b = parseDateUTC(end);
-  if (!Number.isFinite(a) || !Number.isFinite(b)) return NaN;
+
+  if (!Number.isFinite(a) || !Number.isFinite(b)) {
+    return NaN;
+  }
+
   return Math.round((b - a) / 86400000) + 1;
 }
 
@@ -180,12 +232,19 @@ function totalTravelDays() {
 
   Object.values(trips).forEach(records => {
     if (!Array.isArray(records)) return;
+
     records.forEach(trip => {
       const start = parseDateUTC(trip.start);
       const days = calculateDays(trip.start, trip.end);
-      if (!Number.isFinite(start) ||
-          !Number.isFinite(days) ||
-          days < 1 || days > 3650) return;
+
+      if (
+        !Number.isFinite(start) ||
+        !Number.isFinite(days) ||
+        days < 1 ||
+        days > 3650
+      ) {
+        return;
+      }
 
       for (let i = 0; i < days; i++) {
         unique.add(start + i * 86400000);
@@ -196,17 +255,10 @@ function totalTravelDays() {
   return unique.size;
 }
 
-function updateStats() {
-  const count = getVisitedIds().size;
-  $('country-count').textContent = count;
-  $('world-percent').textContent =
-    ((count / WORLD_COUNTRIES) * 100).toFixed(2) + '%';
-  $('travel-days').textContent = totalTravelDays();
-}
-
 function refreshMapColors() {
   countryGroups.forEach((shapes, id) => {
     const visited = isVisited(id);
+
     const color = visited
       ? (countryColors[id] || VISITED_COLOR)
       : DEFAULT_COLOR;
@@ -232,12 +284,14 @@ function openCountryMenu(id, name) {
   const visited = isVisited(id);
 
   $('prompt-country').textContent = activeCountryName;
+
   $('prompt-title').textContent = visited
     ? `Your memories in ${activeCountryName}`
     : `Add ${activeCountryName} to your travel map?`;
 
   $('prompt-yes').textContent = visited
-    ? 'View Memories' : 'Add to My Map';
+    ? 'View Memories'
+    : 'Add to My Map';
 
   $('prompt-create').hidden = !visited;
   $('prompt-delete').hidden = !visited;
@@ -253,25 +307,33 @@ function closeCountryMenu() {
 }
 
 $('prompt-no').addEventListener('click', closeCountryMenu);
+
 promptModal.addEventListener('click', event => {
-  if (event.target === promptModal) closeCountryMenu();
+  if (event.target === promptModal) {
+    closeCountryMenu();
+  }
 });
 
 $('prompt-yes').addEventListener('click', () => {
   const id = activeCountryId;
   const name = activeCountryName;
+
   if (!id) return;
 
   const visited = isVisited(id);
   closeCountryMenu();
 
-  if (visited) openTravelModal(id, name);
-  else openColorModal(id, name);
+  if (visited) {
+    openTravelModal(id, name);
+  } else {
+    openColorModal(id, name);
+  }
 });
 
 $('prompt-create').addEventListener('click', () => {
   const id = activeCountryId;
   const name = activeCountryName;
+
   if (!id || !isVisited(id)) return;
 
   closeCountryMenu();
@@ -281,23 +343,32 @@ $('prompt-create').addEventListener('click', () => {
 $('prompt-recolor').addEventListener('click', () => {
   const id = activeCountryId;
   const name = activeCountryName;
+
   closeCountryMenu();
-  if (id) openColorModal(id, name);
+
+  if (id) {
+    openColorModal(id, name);
+  }
 });
 
 function openColorModal(id, name) {
   colorCountryId = id;
   colorCountryName = name;
+
   selectedColor = countryColors[id] || COLORS[0];
 
   $('color-country').textContent = name;
+
   $('color-save').textContent = isVisited(id)
-    ? 'Update Color' : 'Save Color';
+    ? 'Update Color'
+    : 'Save Color';
 
   document.querySelectorAll('.country-color-option')
     .forEach(button => {
-      button.classList.toggle('selected',
-        button.dataset.color === selectedColor);
+      button.classList.toggle(
+        'selected',
+        button.dataset.color === selectedColor
+      );
     });
 
   showModal(colorModal);
@@ -313,10 +384,10 @@ document.querySelectorAll('.country-color-option')
   .forEach(button => {
     button.addEventListener('click', () => {
       selectedColor = button.dataset.color;
+
       document.querySelectorAll('.country-color-option')
         .forEach(option => {
-          option.classList.toggle('selected',
-            option === button);
+          option.classList.toggle('selected', option === button);
         });
     });
   });
@@ -324,17 +395,22 @@ document.querySelectorAll('.country-color-option')
 $('color-save').addEventListener('click', () => {
   const id = colorCountryId;
   const name = colorCountryName;
+
   if (!id) return;
 
   const oldVisited = [...visitedCountries];
   const oldColors = { ...countryColors };
 
   countryColors[id] = selectedColor;
-  if (!visitedCountries.includes(id)) visitedCountries.push(id);
+
+  if (!visitedCountries.includes(id)) {
+    visitedCountries.push(id);
+  }
 
   if (!saveData()) {
     visitedCountries = oldVisited;
     countryColors = oldColors;
+
     alert('色を保存できませんでした。');
     return;
   }
@@ -345,8 +421,11 @@ $('color-save').addEventListener('click', () => {
 });
 
 $('color-cancel').addEventListener('click', closeColorModal);
+
 colorModal.addEventListener('click', event => {
-  if (event.target === colorModal) closeColorModal();
+  if (event.target === colorModal) {
+    closeColorModal();
+  }
 });
 
 function removeCountry(id, name) {
@@ -359,13 +438,18 @@ function removeCountry(id, name) {
   const oldTrips = trips[id];
 
   visitedCountries = visitedCountries.filter(x => x !== id);
+
   delete countryColors[id];
   delete trips[id];
 
   if (!saveData()) {
     visitedCountries = oldVisited;
     countryColors = oldColors;
-    if (oldTrips !== undefined) trips[id] = oldTrips;
+
+    if (oldTrips !== undefined) {
+      trips[id] = oldTrips;
+    }
+
     alert('削除できませんでした。');
     return false;
   }
@@ -375,25 +459,31 @@ function removeCountry(id, name) {
 }
 
 $('prompt-delete').addEventListener('click', () => {
-  if (activeCountryId &&
-      removeCountry(activeCountryId, activeCountryName)) {
+  if (
+    activeCountryId &&
+    removeCountry(activeCountryId, activeCountryName)
+  ) {
     closeCountryMenu();
   }
 });
 
 $('modal-delete-country').addEventListener('click', () => {
-  if (selectedCountryId &&
-      removeCountry(selectedCountryId, selectedCountryName)) {
+  if (
+    selectedCountryId &&
+    removeCountry(selectedCountryId, selectedCountryName)
+  ) {
     closeTravelModal();
   }
 });
 
-/* SAVED MEMORIES MODAL */
+let editorTripIndex = null;
 
 function openTravelModal(id, name) {
   selectedCountryId = id;
   selectedCountryName = name || getCountryName(id);
+
   $('modal-title').textContent = selectedCountryName;
+
   renderTrips();
   showModal(travelModal);
 }
@@ -405,14 +495,18 @@ function closeTravelModal() {
 }
 
 $('close-modal').addEventListener('click', closeTravelModal);
+
 travelModal.addEventListener('click', event => {
-  if (event.target === travelModal) closeTravelModal();
+  if (event.target === travelModal) {
+    closeTravelModal();
+  }
 });
 
 function tripPhotos(trip) {
   if (Array.isArray(trip.photos) && trip.photos.length) {
     return trip.photos.filter(Boolean);
   }
+
   return trip.photo ? [trip.photo] : [];
 }
 
@@ -423,11 +517,25 @@ function renderTrips() {
   const id = selectedCountryId;
   const records = getTripRecords(id);
 
+  const create = makeElement(
+    'button', 'save-button', '＋ Create New Memories'
+  );
+
+  create.type = 'button';
+
+  create.addEventListener('click', () => {
+    closeTravelModal();
+    openDiaryEditor(id, getCountryName(id));
+  });
+
+  list.appendChild(create);
+
   if (!records.length) {
     list.appendChild(makeElement(
       'p', 'home-trip-empty',
       'まだ日記がありません。Create New Memoriesから追加できます。'
     ));
+
     return;
   }
 
@@ -442,22 +550,27 @@ function renderTrips() {
     ));
 
     if (trip.city) {
-      card.appendChild(makeElement('p', '', '📍 ' + trip.city));
+      card.appendChild(makeElement(
+        'p', '', '📍 ' + trip.city
+      ));
     }
 
     if (trip.diary) {
       const preview = trip.diary.length > 160
         ? trip.diary.slice(0, 160) + '…'
         : trip.diary;
+
       card.appendChild(makeElement('p', '', preview));
     }
 
     const firstPhoto = tripPhotos(trip)[0];
+
     if (firstPhoto) {
       const image = document.createElement('img');
       image.src = firstPhoto;
       image.alt = 'Travel memory';
       image.loading = 'lazy';
+
       card.appendChild(image);
     }
 
@@ -466,22 +579,43 @@ function renderTrips() {
     const view = makeElement(
       'button', 'trip-view-button', 'View Diary'
     );
+
     view.type = 'button';
+
     view.addEventListener('click', () => {
       closeTravelModal();
       openDiaryViewer(id, trip);
     });
 
+    const edit = makeElement(
+      'button', 'trip-view-button', 'Edit Diary'
+    );
+
+    edit.type = 'button';
+
+    edit.addEventListener('click', () => {
+      closeTravelModal();
+      openDiaryEditor(id, getCountryName(id), index);
+    });
+
     const remove = makeElement(
       'button', 'delete-trip', 'Delete'
     );
+
     remove.type = 'button';
+
     remove.addEventListener('click', () => {
-      if (!confirm('この旅行日記を削除しますか？')) return;
+      if (!confirm('この旅行日記を削除しますか？')) {
+        return;
+      }
 
       const old = [...getTripRecords(id)];
+
       trips[id].splice(index, 1);
-      if (!trips[id].length) delete trips[id];
+
+      if (!trips[id].length) {
+        delete trips[id];
+      }
 
       if (!saveData()) {
         trips[id] = old;
@@ -493,7 +627,7 @@ function renderTrips() {
       refreshAll();
     });
 
-    actions.append(view, remove);
+    actions.append(view, edit, remove);
     card.appendChild(actions);
     list.appendChild(card);
   });
@@ -503,14 +637,16 @@ function compressPhoto(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
-    reader.onerror = () =>
+    reader.onerror = () => {
       reject(new Error('写真を読み込めませんでした。'));
+    };
 
     reader.onload = () => {
       const image = new Image();
 
-      image.onerror = () =>
+      image.onerror = () => {
         reject(new Error('画像を開けませんでした。'));
+      };
 
       image.onload = () => {
         const ratio = Math.min(
@@ -518,16 +654,26 @@ function compressPhoto(file) {
         );
 
         const canvas = document.createElement('canvas');
-        canvas.width = Math.max(1, Math.round(image.width * ratio));
-        canvas.height = Math.max(1, Math.round(image.height * ratio));
+
+        canvas.width = Math.max(
+          1, Math.round(image.width * ratio)
+        );
+
+        canvas.height = Math.max(
+          1, Math.round(image.height * ratio)
+        );
 
         const context = canvas.getContext('2d');
+
         if (!context) {
           reject(new Error('画像処理に失敗しました。'));
           return;
         }
 
-        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        context.drawImage(
+          image, 0, 0, canvas.width, canvas.height
+        );
+
         resolve(canvas.toDataURL('image/jpeg', 0.65));
       };
 
@@ -538,20 +684,40 @@ function compressPhoto(file) {
   });
 }
 
+const diaryEditButton = makeElement(
+  'button', 'diary-editor-save', 'Edit Diary'
+);
+
+diaryEditButton.type = 'button';
+diaryEditButton.id = 'diary-edit-button';
+diaryEditButton.hidden = true;
+
+$('editor-save').insertAdjacentElement(
+  'afterend', diaryEditButton
+);
+
 function setDiaryEditMode(editing) {
   [
-    'editor-dates', 'editor-city-wrap',
-    'editor-text-wrap', 'editor-photo-control',
-    'editor-photo-count', 'editor-message',
+    'editor-dates',
+    'editor-city-wrap',
+    'editor-text-wrap',
+    'editor-photo-control',
+    'editor-photo-count',
+    'editor-message',
     'editor-save'
   ].forEach(id => {
     $(id).hidden = !editing;
   });
 
-  ['viewer-date', 'viewer-city', 'viewer-text']
-    .forEach(id => {
-      $(id).hidden = editing;
-    });
+  [
+    'viewer-date',
+    'viewer-city',
+    'viewer-text'
+  ].forEach(id => {
+    $(id).hidden = editing;
+  });
+
+  diaryEditButton.hidden = editing;
 }
 
 function applyDiaryColor(id) {
@@ -574,33 +740,43 @@ function renderDiaryPhotos(photos, editing = false) {
 
     if (src) {
       const image = document.createElement('img');
+
       image.src = src;
       image.alt = `Travel memory ${index + 1}`;
+
       frame.appendChild(image);
 
       if (editing) {
         const remove = makeElement(
           'button', 'diary-photo-remove', '×'
         );
+
         remove.type = 'button';
         remove.setAttribute('aria-label', 'Remove photo');
 
         remove.addEventListener('click', () => {
           if (editorLoading) return;
+
           editorPhotos.splice(index, 1);
           renderDiaryPhotos(editorPhotos, true);
         });
 
         frame.appendChild(remove);
       }
+
     } else {
       const placeholder = makeElement(
         'div', 'diary-photo-placeholder'
       );
-      placeholder.appendChild(makeElement('span', '', '✈'));
+
+      placeholder.appendChild(
+        makeElement('span', '', '✈')
+      );
+
       placeholder.appendChild(makeElement(
         'p', '', 'Memories made here ♡'
       ));
+
       frame.appendChild(placeholder);
     }
 
@@ -611,20 +787,23 @@ function renderDiaryPhotos(photos, editing = false) {
     `${photos.length} / 12 photos`;
 }
 
-function openDiaryEditor(id, name, trip = null) {
-  editingRecord = trip;
-  viewerRecord = null;
+function openDiaryEditor(id, name, tripIndex = null) {
+  const existingTrip = tripIndex !== null
+    ? getTripRecords(id)[tripIndex]
+    : null;
 
-  $('diary-edit').hidden = true;
-  $('diary-delete').hidden = true;
-  $('diary-cancel').hidden = false;
-
-  $('editor-save').textContent = trip
-    ? 'Save Changes'
-    : 'Save My Memories';
+  if (tripIndex !== null && !existingTrip) {
+    alert('旅行日記が見つかりませんでした。');
+    return;
+  }
 
   editorCountryId = id;
-  editorPhotos = trip ? [...tripPhotos(trip)] : [];
+  editorTripIndex = tripIndex;
+
+  editorPhotos = existingTrip
+    ? [...tripPhotos(existingTrip)]
+    : [];
+
   editorLoading = false;
 
   $('viewer-country').textContent =
@@ -632,37 +811,33 @@ function openDiaryEditor(id, name, trip = null) {
 
   applyDiaryColor(id);
 
-  $('editor-start').value = trip?.start || '';
-  $('editor-end').value = trip?.end || '';
-  $('editor-city').value = trip?.city || '';
-  $('editor-text').value = trip?.diary || '';
+  $('editor-start').value = existingTrip?.start || '';
+  $('editor-end').value = existingTrip?.end || '';
+  $('editor-city').value = existingTrip?.city || '';
+  $('editor-text').value = existingTrip?.diary || '';
 
   $('editor-photos').value = '';
   $('editor-message').textContent = '';
   $('editor-save').disabled = false;
+
+  $('editor-save').textContent = existingTrip
+    ? 'Save Changes'
+    : 'Save My Memories';
 
   setDiaryEditMode(true);
   renderDiaryPhotos(editorPhotos, true);
   showModal(diaryViewer);
 }
 
-
 function openDiaryViewer(id, trip) {
   if (!trip) return;
 
-  viewerRecord = { id, trip };
-  editingRecord = null;
-
-  $('diary-edit').hidden = false;
-  $('diary-delete').hidden = false;
-  $('diary-cancel').hidden = true;
-
   editorCountryId = null;
+  editorTripIndex = null;
   editorPhotos = [];
   editorLoading = false;
 
-  $('viewer-country').textContent =
-    getCountryName(id);
+  $('viewer-country').textContent = getCountryName(id);
 
   $('viewer-date').textContent =
     `${trip.start || ''} ～ ${trip.end || ''}`;
@@ -676,8 +851,20 @@ function openDiaryViewer(id, trip) {
   applyDiaryColor(id);
   setDiaryEditMode(false);
   renderDiaryPhotos(tripPhotos(trip));
+
+  const index = getTripRecords(id).indexOf(trip);
+
+  diaryEditButton.hidden = index < 0;
+
+  diaryEditButton.onclick = () => {
+    if (index < 0) return;
+
+    openDiaryEditor(id, getCountryName(id), index);
+  };
+
   showModal(diaryViewer);
 }
+
 
 $('editor-photos').addEventListener('change', async event => {
   if (!editorCountryId || editorLoading) return;
@@ -690,27 +877,33 @@ $('editor-photos').addEventListener('change', async event => {
   message.textContent = 'Loading photos...';
 
   try {
+    let limitReached = false;
+
     for (const file of files) {
       if (editorPhotos.length >= 12) {
-        message.textContent = '写真は最大12枚まで追加できます。';
+        limitReached = true;
         break;
       }
 
-      if (!file.type.startsWith('image/')) continue;
+      if (!file.type.startsWith('image/')) {
+        continue;
+      }
 
       const photo = await compressPhoto(file);
       editorPhotos.push(photo);
     }
 
-    renderDiaryPhotos(editorPhotos, true);
+    message.textContent = limitReached
+      ? '写真は最大12枚まで追加できます。'
+      : '';
 
-    if (editorPhotos.length < 12) {
-      message.textContent = '';
-    }
   } catch (error) {
     console.error(error);
     message.textContent = '写真を読み込めませんでした。';
+
   } finally {
+    renderDiaryPhotos(editorPhotos, true);
+
     editorLoading = false;
     $('editor-save').disabled = false;
     event.target.value = '';
@@ -721,6 +914,7 @@ $('editor-save').addEventListener('click', () => {
   if (!editorCountryId || editorLoading) return;
 
   const id = editorCountryId;
+
   const start = $('editor-start').value;
   const end = $('editor-end').value;
   const city = $('editor-city').value.trim();
@@ -729,71 +923,68 @@ $('editor-save').addEventListener('click', () => {
 
   const days = calculateDays(start, end);
 
-  if (
-    !Number.isFinite(days) ||
-    days < 1 ||
-    days > 3650
-  ) {
+  if (!Number.isFinite(days) || days < 1 || days > 3650) {
     message.textContent =
       '旅行開始日と終了日を正しく入力してください。';
+
     return;
   }
 
   if (!diary) {
-    message.textContent =
-      '日記の本文を入力してください。';
-
+    message.textContent = '日記の本文を入力してください。';
     $('editor-text').focus();
     return;
   }
 
   const now = new Date().toISOString();
 
+  const oldRecords = [...getTripRecords(id)];
+  const oldVisited = [...visitedCountries];
+
+  const editing = editorTripIndex !== null;
+
+  const existingTrip = editing
+    ? oldRecords[editorTripIndex]
+    : null;
+
+  if (editing && !existingTrip) {
+    message.textContent =
+      '編集する旅行日記が見つかりませんでした。';
+
+    return;
+  }
+
   const newTrip = {
-    ...(editingRecord || {}),
+    ...existingTrip,
     start,
     end,
     city,
     diary,
     photo: editorPhotos[0] || '',
     photos: [...editorPhotos],
-
-    createdAt:
-      editingRecord?.createdAt ||
-      editingRecord?.updatedAt ||
-      editingRecord?.start ||
-      now,
-
+    createdAt: existingTrip?.createdAt || now,
     updatedAt: now
   };
 
-  const oldRecords = [...getTripRecords(id)];
-  const oldVisited = [...visitedCountries];
+  if (editing) {
+    trips[id] = [...oldRecords];
+    trips[id][editorTripIndex] = newTrip;
 
-  const editIndex = editingRecord
-    ? oldRecords.indexOf(editingRecord)
-    : -1;
-
-  if (editingRecord && editIndex < 0) {
-    message.textContent =
-      '編集対象の日記が見つかりません。';
-    return;
+  } else {
+    trips[id] = [...oldRecords, newTrip];
   }
-
-  // 既存の日記を編集する場合は上書き
-  // 新規作成の場合は新しく追加
-  trips[id] = editingRecord
-    ? oldRecords.map((record, index) =>
-        index === editIndex ? newTrip : record
-      )
-    : [...oldRecords, newTrip];
 
   if (!visitedCountries.includes(id)) {
     visitedCountries.push(id);
   }
 
   if (!saveData()) {
-    trips[id] = oldRecords;
+    if (oldRecords.length) {
+      trips[id] = oldRecords;
+    } else {
+      delete trips[id];
+    }
+
     visitedCountries = oldVisited;
 
     message.textContent =
@@ -802,85 +993,15 @@ $('editor-save').addEventListener('click', () => {
     return;
   }
 
+  editorTripIndex = null;
+
   refreshAll();
   openDiaryViewer(id, newTrip);
 });
 
-/* EDIT SAVED MEMORIES */
-
-$('diary-edit').addEventListener('click', () => {
-  if (!viewerRecord) return;
-
-  const { id, trip } = viewerRecord;
-
-  openDiaryEditor(
-    id,
-    getCountryName(id),
-    trip
-  );
-});
-
-
-/* CANCEL EDITING */
-
-$('diary-cancel').addEventListener('click', () => {
-  if (editorLoading) return;
-
-  if (!editingRecord) {
-    closeDiaryViewer();
-    return;
-  }
-
-  if (!confirm('変更を保存せずに戻りますか？')) {
-    return;
-  }
-
-  openDiaryViewer(
-    editorCountryId,
-    editingRecord
-  );
-});
-
-
-/* DELETE SAVED MEMORY */
-
-$('diary-delete').addEventListener('click', () => {
-  if (!viewerRecord) return;
-
-  const { id, trip } = viewerRecord;
-  const old = getTripRecords(id);
-
-  if (!old.includes(trip)) return;
-
-  if (!confirm('この旅行日記を削除しますか？')) {
-    return;
-  }
-
-  const remaining = old.filter(
-    record => record !== trip
-  );
-
-  if (remaining.length) {
-    trips[id] = remaining;
-  } else {
-    delete trips[id];
-  }
-
-  if (!saveData()) {
-    trips[id] = old;
-    alert('削除できませんでした。');
-    return;
-  }
-
-  closeDiaryViewer();
-  refreshAll();
-});
-
 function closeDiaryViewer() {
   if (editorLoading) {
-    alert(
-      '写真の読み込みが終わるまでお待ちください。'
-    );
+    alert('写真の読み込みが終わるまでお待ちください。');
     return;
   }
 
@@ -892,8 +1013,8 @@ function closeDiaryViewer() {
   }
 
   editorCountryId = null;
-  editingRecord = null;
-  viewerRecord = null;
+  editorTripIndex = null;
+  editorPhotos = [];
 
   hideModal(diaryViewer);
 }
@@ -903,11 +1024,16 @@ $('close-diary-viewer').addEventListener(
 );
 
 diaryViewer.addEventListener('click', event => {
-  if (event.target === diaryViewer) closeDiaryViewer();
+  if (event.target === diaryViewer) {
+    closeDiaryViewer();
+  }
 });
 
 function getUpdatedDate(trip) {
-  return trip.updatedAt || trip.createdAt || trip.start || '';
+  return trip.updatedAt ||
+    trip.createdAt ||
+    trip.start ||
+    '';
 }
 
 function getSortedTrips() {
@@ -915,6 +1041,7 @@ function getSortedTrips() {
 
   Object.entries(trips).forEach(([id, records]) => {
     if (!Array.isArray(records)) return;
+
     records.forEach((trip, index) => {
       if (trip && typeof trip === 'object') {
         entries.push({ id, trip, index });
@@ -924,21 +1051,27 @@ function getSortedTrips() {
 
   entries.sort((a, b) => {
     switch (travelSortMode) {
+
       case 'updated-old':
         return getUpdatedDate(a.trip)
           .localeCompare(getUpdatedDate(b.trip));
+
       case 'trip-new':
         return (b.trip.start || '')
           .localeCompare(a.trip.start || '');
+
       case 'trip-old':
         return (a.trip.start || '')
           .localeCompare(b.trip.start || '');
+
       case 'az':
         return getCountryName(a.id)
           .localeCompare(getCountryName(b.id), 'en');
+
       case 'za':
         return getCountryName(b.id)
           .localeCompare(getCountryName(a.id), 'en');
+
       default:
         return getUpdatedDate(b.trip)
           .localeCompare(getUpdatedDate(a.trip));
@@ -947,6 +1080,7 @@ function getSortedTrips() {
 
   return entries;
 }
+
 
 $('travel-sort-select').addEventListener('change', event => {
   travelSortMode = event.target.value;
@@ -964,25 +1098,33 @@ function renderHomeTrips() {
       'p', 'home-trip-empty',
       'まだ旅行日記がありません。地図から国を選んで、最初の思い出を追加しよう！'
     ));
+
     return;
   }
 
   entries.forEach(({ id, trip }) => {
     const card = makeElement('article', 'home-trip-card');
+
     card.tabIndex = 0;
     card.setAttribute('role', 'button');
-    card.setAttribute('aria-label',
-      getCountryName(id) + 'の日記を読む');
+
+    card.setAttribute(
+      'aria-label',
+      getCountryName(id) + 'の日記を読む'
+    );
 
     const firstPhoto = tripPhotos(trip)[0];
 
     if (firstPhoto) {
       const image = document.createElement('img');
+
       image.className = 'home-trip-image';
       image.src = firstPhoto;
       image.alt = getCountryName(id) + 'の旅行写真';
       image.loading = 'lazy';
+
       card.appendChild(image);
+
     } else {
       card.appendChild(makeElement(
         'div', 'home-trip-placeholder', '✈️'
@@ -1018,7 +1160,11 @@ function renderHomeTrips() {
 
     card.appendChild(body);
 
-    const open = () => openDiaryViewer(id, trip);
+
+    const open = () => {
+      openDiaryViewer(id, trip);
+    };
+
     card.addEventListener('click', open);
 
     card.addEventListener('keydown', event => {
@@ -1032,269 +1178,85 @@ function renderHomeTrips() {
   });
 }
 
-function applyView() {
-  if (!svgRoot) return;
-  svgRoot.setAttribute('viewBox',
-    `${currentView.x} ${currentView.y} ${currentView.w} ${currentView.h}`);
-}
-
-function limitView() {
-  currentView.x = Math.max(originalView.x,
-    Math.min(currentView.x,
-      originalView.x + originalView.w - currentView.w));
-
-  currentView.y = Math.max(originalView.y,
-    Math.min(currentView.y,
-      originalView.y + originalView.h - currentView.h));
-}
-
-function zoomMap(factor) {
-  if (!svgRoot) return;
-
-  const width = Math.max(originalView.w / 8,
-    Math.min(originalView.w, currentView.w * factor));
-
-  const height = width * originalView.h / originalView.w;
-  const centerX = currentView.x + currentView.w / 2;
-  const centerY = currentView.y + currentView.h / 2;
-
-  currentView = {
-    x: centerX - width / 2,
-    y: centerY - height / 2,
-    w: width,
-    h: height
-  };
-
-  limitView();
-  applyView();
-}
-
-$('zoom-in').addEventListener('click', () => zoomMap(.75));
-$('zoom-out').addEventListener('click', () => zoomMap(1.25));
-$('zoom-reset').addEventListener('click', () => {
-  currentView = { ...originalView };
-  applyView();
-});
-
-function zoomToCountry(id) {
-  if (!svgRoot) return;
-
-  const shapes = countryGroups.get(id);
-  if (!shapes || !shapes.length) return;
-
-  let target = null;
-  let largestArea = -1;
-
-  shapes.forEach(shape => {
-    try {
-      const box = shape.getBBox();
-      const area = box.width * box.height;
-      if (area > largestArea) {
-        largestArea = area;
-        target = box;
-      }
-    } catch (error) {
-      console.warn(error);
-    }
-  });
-
-  if (!target) return;
-
-  const centerX = target.x + target.width / 2;
-  const centerY = target.y + target.height / 2;
-
-  const desiredWidth = Math.max(
-    target.width * 2.2,
-    target.height * 2.2 *
-      (originalView.w / originalView.h)
-  );
-
-  const width = Math.max(originalView.w / 8,
-    Math.min(originalView.w, desiredWidth));
-
-  const height = width * originalView.h / originalView.w;
-
-  currentView = {
-    x: centerX - width / 2,
-    y: centerY - height / 2,
-    w: width,
-    h: height
-  };
-
-  limitView();
-  applyView();
-}
-
-function initializeMap() {
-  if (mapInitialized || !mapObject) return;
-
-  const svgDocument = mapObject.contentDocument;
-  if (!svgDocument) {
-    console.error('地図を読み込めません。Live Serverで開いてください。');
-    return;
-  }
-
-  svgRoot = svgDocument.documentElement;
-
-  if (!svgRoot || svgRoot.tagName.toLowerCase() !== 'svg') {
-    return;
-  }
-
-  const viewBox = svgRoot.viewBox.baseVal;
-
-  if (viewBox && viewBox.width > 0 && viewBox.height > 0) {
-    originalView = {
-      x: viewBox.x,
-      y: viewBox.y,
-      w: viewBox.width,
-      h: viewBox.height
-    };
-  }
-
-  currentView = { ...originalView };
-  applyView();
-
-  countryGroups = new Map();
-  countryNames = new Map();
-
-  const shapes = [...svgDocument.querySelectorAll('path')];
-  const nameToId = new Map();
-
-  shapes.forEach(shape => {
-    const id = shape.getAttribute('id');
-    const name = shape.getAttribute('name');
-    if (id && name) {
-      nameToId.set(name.trim().toLowerCase(), id);
-    }
-  });
-
-  shapes.forEach(shape => {
-    const id = shape.getAttribute('id');
-    const name = shape.getAttribute('name');
-
-    const title =
-      shape.querySelector('title')?.textContent?.trim() ||
-      shape.getAttribute('aria-label') ||
-      shape.getAttribute('data-name') || '';
-
-    const className = shape.getAttribute('class') || '';
-
-    const countryName =
-      name || title ||
-      (className.toLowerCase() !== 'country' ? className : '') ||
-      id;
-
-    if (!countryName) return;
-
-    const countryId =
-      (id && name ? id : null) ||
-      nameToId.get(countryName.trim().toLowerCase()) ||
-      id || countryName;
-
-    const displayName = SHORT_NAMES[countryName] || countryName;
-
-    if (!countryNames.has(countryId) || (id && name)) {
-      countryNames.set(countryId, displayName);
-    }
-
-    if (!countryGroups.has(countryId)) {
-      countryGroups.set(countryId, []);
-    }
-
-    countryGroups.get(countryId).push(shape);
-    shape.style.cursor = 'pointer';
-
-    shape.addEventListener('click', event => {
-      if (suppressClick) {
-        event.preventDefault();
-        return;
-      }
-
-      event.stopPropagation();
-      openCountryMenu(countryId, getCountryName(countryId));
-    });
-  });
-
-  mapInitialized = true;
-  refreshAll();
-
-  svgRoot.style.cursor = 'grab';
-  svgRoot.style.touchAction = 'none';
-
-  svgRoot.addEventListener('wheel', event => {
-    event.preventDefault();
-    zoomMap(event.deltaY < 0 ? .85 : 1.15);
-  }, { passive: false });
-
-  svgRoot.addEventListener('pointerdown', event => {
-    if (event.pointerType === 'mouse' && event.button !== 0) {
-      return;
-    }
-
-    dragState = {
-      x: event.clientX,
-      y: event.clientY,
-      viewX: currentView.x,
-      viewY: currentView.y,
-      moved: false
-    };
-  });
-
-  svgRoot.addEventListener('pointermove', event => {
-    if (!dragState) return;
-
-    const dx = event.clientX - dragState.x;
-    const dy = event.clientY - dragState.y;
-
-    if (Math.hypot(dx, dy) > 4) dragState.moved = true;
-    if (!dragState.moved) return;
-
-    const bounds = svgRoot.getBoundingClientRect();
-    const scale = Math.min(
-      bounds.width / currentView.w,
-      bounds.height / currentView.h
-    );
-
-    if (!scale) return;
-
-    currentView.x = dragState.viewX - dx / scale;
-    currentView.y = dragState.viewY - dy / scale;
-
-    limitView();
-    applyView();
-    svgRoot.style.cursor = 'grabbing';
-  });
-
-  function stopDragging() {
-    if (!dragState) return;
-
-    if (dragState.moved) {
-      suppressClick = true;
-      setTimeout(() => { suppressClick = false; }, 0);
-    }
-
-    dragState = null;
-    svgRoot.style.cursor = 'grab';
-  }
-
-  svgRoot.addEventListener('pointerup', stopDragging);
-  svgRoot.addEventListener('pointercancel', stopDragging);
-}
-
 const searchInput = $('country-search-input');
 const searchResults = $('country-search-results');
 
+const SEARCH_ALIASES = {
+  'VA': [
+    'Vatican', 'Vatican City', 'Holy See',
+    'バチカン', 'バチカン市国'
+  ],
+
+  'SG': ['Singapore', 'シンガポール'],
+  'LI': ['Liechtenstein', 'リヒテンシュタイン'],
+  'MC': ['Monaco', 'モナコ'],
+  'SM': ['San Marino', 'サンマリノ'],
+  'AD': ['Andorra', 'アンドラ'],
+  'KI': ['Kiribati', 'キリバス'],
+
+  'PS': [
+    'Palestine', 'State of Palestine', 'パレスチナ'
+  ],
+
+  'United States': [
+    'USA', 'US', 'America', 'アメリカ'
+  ],
+
+  'United Kingdom': [
+    'UK', 'Britain', 'Great Britain', 'イギリス'
+  ],
+
+  'Japan': ['JP', '日本'],
+  'BR': ['Brazil', 'Brasil', 'ブラジル'],
+  'KR': ['South Korea', 'Korea', '韓国'],
+  'KP': ['North Korea', '北朝鮮'],
+  'Russian Federation': ['Russia', 'ロシア'],
+  'VN': ['Vietnam', 'Viet Nam', 'ベトナム'],
+  'CZ': ['Czechia', 'Czech Republic', 'チェコ'],
+  'Turkey': ['Turkey', 'Türkiye', 'トルコ']
+};
+
+function normalizeSearch(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
 function getSearchableCountries() {
   return [...countryNames.entries()]
+
     .filter(([id, name]) =>
-      id && name && name.trim().toLowerCase() !== 'country'
+      id &&
+      name &&
+      name.trim().toLowerCase() !== 'country'
     )
+
     .map(([id, name]) => ({ id, name }))
-    .sort((a, b) => a.name.localeCompare(b.name, 'en'));
+
+    .sort((a, b) =>
+      a.name.localeCompare(b.name, 'en')
+    );
+}
+
+function countryMatchesSearch(country, query) {
+  const aliases = SEARCH_ALIASES[country.id] || [];
+
+  const names = [
+    country.name,
+    country.id,
+    ...aliases
+  ];
+
+  return names.some(name =>
+    normalizeSearch(name).includes(query)
+  );
 }
 
 function renderSearchResults() {
-  const query = searchInput.value.trim().toLowerCase();
+  const query = normalizeSearch(searchInput.value);
+
   searchResults.replaceChildren();
 
   if (!query) {
@@ -1303,9 +1265,34 @@ function renderSearchResults() {
   }
 
   const matches = getSearchableCountries()
+
     .filter(country =>
-      country.name.toLowerCase().includes(query)
-    ).slice(0, 12);
+      countryMatchesSearch(country, query)
+    )
+
+    .sort((a, b) => {
+      const aName = normalizeSearch(a.name);
+      const bName = normalizeSearch(b.name);
+
+      const aExact = aName === query;
+      const bExact = bName === query;
+
+      if (aExact !== bExact) {
+        return aExact ? -1 : 1;
+      }
+
+      const aStarts = aName.startsWith(query);
+      const bStarts = bName.startsWith(query);
+
+      if (aStarts !== bStarts) {
+        return aStarts ? -1 : 1;
+      }
+
+      return a.name.localeCompare(b.name, 'en');
+    })
+
+    .slice(0, 12);
+
 
   if (!matches.length) {
     searchResults.appendChild(makeElement(
@@ -1313,10 +1300,12 @@ function renderSearchResults() {
     ));
   }
 
+
   matches.forEach(country => {
     const button = makeElement(
       'button', 'country-search-result'
     );
+
     button.type = 'button';
 
     button.appendChild(makeElement(
@@ -1324,16 +1313,26 @@ function renderSearchResults() {
     ));
 
     if (isVisited(country.id)) {
-      button.appendChild(makeElement(
+      const status = makeElement(
         'span', 'country-search-status', 'Visited'
-      ));
+      );
+
+      status.style.color =
+        countryColors[country.id] || VISITED_COLOR;
+
+      button.appendChild(status);
     }
 
     button.addEventListener('click', () => {
       searchInput.value = country.name;
       searchResults.hidden = true;
+      searchInput.blur();
+
       zoomToCountry(country.id);
-      openCountryMenu(country.id, country.name);
+
+      openCountryMenu(
+        country.id, country.name
+      );
     });
 
     searchResults.appendChild(button);
@@ -1342,10 +1341,14 @@ function renderSearchResults() {
   searchResults.hidden = false;
 }
 
-searchInput.addEventListener('input', renderSearchResults);
+searchInput.addEventListener(
+  'input', renderSearchResults
+);
 
 searchInput.addEventListener('focus', () => {
-  if (searchInput.value.trim()) renderSearchResults();
+  if (searchInput.value.trim()) {
+    renderSearchResults();
+  }
 });
 
 searchInput.addEventListener('keydown', event => {
@@ -1375,24 +1378,956 @@ document.addEventListener('click', event => {
 document.addEventListener('keydown', event => {
   if (event.key !== 'Escape') return;
 
-  if (!diaryViewer.hidden) closeDiaryViewer();
-  else if (!travelModal.hidden) closeTravelModal();
-  else if (!colorModal.hidden) closeColorModal();
-  else if (!promptModal.hidden) closeCountryMenu();
+  if (!diaryViewer.hidden) {
+    closeDiaryViewer();
+
+  } else if (!travelModal.hidden) {
+    closeTravelModal();
+
+  } else if (!colorModal.hidden) {
+    closeColorModal();
+
+  } else if (!promptModal.hidden) {
+    closeCountryMenu();
+  }
 });
 
-/* INITIALIZATION */
+const ISO_COUNTRIES = `
+AD AE AF AG AL AM AO AR AT AU AZ
+BA BB BD BE BF BG BH BI BJ BN BO BR BS BT BW BY BZ
+CA CD CF CG CH CI CL CM CN CO CR CU CV CY CZ
+DE DJ DK DM DO DZ
+EC EE EG ER ES ET
+FI FJ FM FR
+GA GB GD GE GH GM GN GQ GR GT GW GY
+HN HR HT HU
+ID IE IL IN IQ IR IS IT
+JM JO JP
+KE KG KH KI KM KN KP KR KW KZ
+LA LB LC LI LK LR LS LT LU LV LY
+MA MC MD ME MG MH MK ML MM MN MR MT MU MV MW MX MY MZ
+NA NE NG NI NL NO NP NR NZ
+OM
+PA PE PG PH PK PL PS PT PW PY
+QA
+RO RS RU RW
+SA SB SC SD SE SG SI SK SL SM SN SO SR SS ST SV SY SZ
+TD TG TH TJ TL TM TN TO TR TT TV TZ
+UA UG US UY UZ
+VA VC VE VN VU
+WS
+YE
+ZA ZM ZW
+`.trim().split(/\s+/);
+
+const englishNames = new Intl.DisplayNames(
+  ['en'], { type: 'region' }
+);
+
+const japaneseNames = new Intl.DisplayNames(
+  ['ja'], { type: 'region' }
+);
+
+const officialNames = {
+  VA: 'Vatican City',
+  PS: 'Palestine',
+  US: 'United States',
+  GB: 'United Kingdom',
+  KR: 'South Korea',
+  KP: 'North Korea',
+  RU: 'Russia',
+  CZ: 'Czech Republic',
+  TR: 'Turkey',
+  CV: 'Cape Verde',
+  CI: "Côte d'Ivoire",
+  CD: 'Democratic Republic of the Congo',
+  CG: 'Republic of the Congo',
+  FM: 'Micronesia',
+  SZ: 'Eswatini',
+  TL: 'Timor-Leste'
+};
+
+const countryCodeLookup = new Map();
+const registeredCountryIds = new Map();
+
+function normalizeCountryName(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
+ISO_COUNTRIES.forEach(code => {
+  [
+    code,
+    englishNames.of(code),
+    officialNames[code]
+  ].filter(Boolean).forEach(name => {
+    countryCodeLookup.set(
+      normalizeCountryName(name), code
+    );
+  });
+});
+
+const extraCountryNames = {
+  'Russian Federation': 'RU',
+  'United States of America': 'US',
+  'Republic of Korea': 'KR',
+  'Korea, Republic of': 'KR',
+  'Democratic Republic of Korea': 'KP',
+  "Democratic People's Republic of Korea": 'KP',
+  'Viet Nam': 'VN',
+  'Czechia': 'CZ',
+  'Swaziland': 'SZ',
+  'Macedonia': 'MK',
+  'Brunei Darussalam': 'BN',
+  'Lao PDR': 'LA',
+  "Lao People's Democratic Republic": 'LA',
+  'United Republic of Tanzania': 'TZ',
+  'Federated States of Micronesia': 'FM',
+  'Micronesia, Federated States of': 'FM',
+  'Holy See': 'VA',
+  'State of Palestine': 'PS',
+  'Palestinian Territories': 'PS',
+  'West Bank': 'PS',
+  'Gaza Strip': 'PS',
+  'Congo': 'CG',
+  'Congo, Dem. Rep.': 'CD',
+  'Democratic Republic of Congo': 'CD',
+  'Republic of Congo': 'CG',
+  'Ivory Coast': 'CI',
+  'Cabo Verde': 'CV',
+  'East Timor': 'TL',
+  'The Bahamas': 'BS',
+  'The Gambia': 'GM',
+  'Türkiye': 'TR',
+  'Sao Tome and Principe': 'ST',
+  'Saint Vincent and the Grenadines': 'VC',
+  'Saint Kitts and Nevis': 'KN',
+  'Saint Lucia': 'LC'
+};
+
+Object.entries(extraCountryNames)
+  .forEach(([name, code]) => {
+    countryCodeLookup.set(
+      normalizeCountryName(name), code
+    );
+  });
+
+function resolveCountryCode(value) {
+  return countryCodeLookup.get(
+    normalizeCountryName(value)
+  ) || null;
+}
+
+function updateStats() {
+  const visitedCodes = new Set();
+
+  getVisitedIds().forEach(id => {
+    const code =
+      resolveCountryCode(id) ||
+      resolveCountryCode(getCountryName(id));
+
+    if (code) {
+      visitedCodes.add(code);
+    }
+  });
+
+  const count = visitedCodes.size;
+
+  $('country-count').textContent = count;
+
+  $('world-percent').textContent =
+    ((count / WORLD_COUNTRIES) * 100)
+      .toFixed(2) + '%';
+
+  $('travel-days').textContent = totalTravelDays();
+}
+
+function applyMapView() {
+  if (!svgRoot) return;
+
+  svgRoot.setAttribute(
+    'viewBox',
+    [
+      currentView.x,
+      currentView.y,
+      currentView.w,
+      currentView.h
+    ].join(' ')
+  );
+}
+
+function resetMapView() {
+  currentView = { ...originalView };
+  applyMapView();
+}
+
+function zoomMap(factor, centerX, centerY) {
+  if (!svgRoot) return;
+
+  const newWidth = Math.max(
+    originalView.w / 40,
+    Math.min(originalView.w, currentView.w * factor)
+  );
+
+  const ratio = newWidth / currentView.w;
+  const newHeight = currentView.h * ratio;
+
+  const x = centerX ??
+    currentView.x + currentView.w / 2;
+
+  const y = centerY ??
+    currentView.y + currentView.h / 2;
+
+  currentView = {
+    x: x - (x - currentView.x) * ratio,
+    y: y - (y - currentView.y) * ratio,
+    w: newWidth,
+    h: newHeight
+  };
+
+  applyMapView();
+}
+
+$('zoom-in')?.addEventListener(
+  'click', () => zoomMap(0.75)
+);
+
+$('zoom-out')?.addEventListener(
+  'click', () => zoomMap(1.25)
+);
+
+$('zoom-reset')?.addEventListener(
+  'click', resetMapView
+);
+
+function zoomToCountry(id) {
+  const shapes = countryGroups.get(id);
+
+  if (!shapes?.length) return;
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  shapes.forEach(shape => {
+    try {
+      const bounds = shape.getBBox();
+
+      minX = Math.min(minX, bounds.x);
+      minY = Math.min(minY, bounds.y);
+
+      maxX = Math.max(
+        maxX, bounds.x + bounds.width
+      );
+
+      maxY = Math.max(
+        maxY, bounds.y + bounds.height
+      );
+
+    } catch (error) {
+      console.warn(error);
+    }
+  });
+
+  if (!Number.isFinite(minX)) return;
+
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+
+  const aspect =
+    originalView.w / originalView.h;
+
+  const width = Math.min(
+    originalView.w,
+    Math.max(
+      80,
+      (maxX - minX) * 2,
+      (maxY - minY) * 2 * aspect
+    )
+  );
+
+  const height = width / aspect;
+
+  currentView = {
+    x: centerX - width / 2,
+    y: centerY - height / 2,
+    w: width,
+    h: height
+  };
+
+  applyMapView();
+}
+
+function registerCountryShape(shape, id, name) {
+  if (!id || !name) return;
+
+  countryNames.set(id, name);
+
+  if (!countryGroups.has(id)) {
+    countryGroups.set(id, []);
+  }
+
+  countryGroups.get(id).push(shape);
+
+  const code =
+    resolveCountryCode(id) ||
+    resolveCountryCode(name);
+
+  if (code) {
+    registeredCountryIds.set(code, id);
+  }
+
+  shape.style.cursor = 'pointer';
+
+  shape.setAttribute('aria-label', name);
+  shape.setAttribute('tabindex', '0');
+
+  shape.addEventListener('click', event => {
+    if (suppressClick) return;
+
+    event.stopPropagation();
+
+    openCountryMenu(id, getCountryName(id));
+  });
+
+  shape.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+
+      openCountryMenu(id, getCountryName(id));
+    }
+  });
+}
+
+function createCountryMarker(
+  id, name, x, y, radius = 2.5
+) {
+  const marker =
+    svgRoot.ownerDocument.createElementNS(
+      'http://www.w3.org/2000/svg',
+      'circle'
+    );
+
+  marker.setAttribute('cx', x);
+  marker.setAttribute('cy', y);
+  marker.setAttribute('r', radius);
+
+  marker.setAttribute('data-country', id);
+  marker.setAttribute('data-name', name);
+
+  marker.setAttribute(
+    'class', 'country micro-marker'
+  );
+
+  marker.setAttribute('stroke', '#ffffff');
+  marker.setAttribute('stroke-width', '0.8');
+
+  marker.setAttribute(
+    'vector-effect', 'non-scaling-stroke'
+  );
+
+  svgRoot.appendChild(marker);
+
+  registerCountryShape(marker, id, name);
+}
+
+function addSmallCountryMarkers() {
+  countryGroups.forEach((shapes, id) => {
+    if (!shapes.length) return;
+
+    if (
+      shapes.some(shape =>
+        shape.tagName.toLowerCase() === 'circle'
+      )
+    ) {
+      return;
+    }
+
+    let largestShape = null;
+    let largestArea = 0;
+
+    shapes.forEach(shape => {
+      try {
+        const bounds = shape.getBBox();
+
+        const area =
+          bounds.width * bounds.height;
+
+        if (area > largestArea) {
+          largestArea = area;
+          largestShape = bounds;
+        }
+
+      } catch (error) {
+        console.warn(error);
+      }
+    });
+
+    if (!largestShape) return;
+
+    if (
+      largestShape.width <= 10 &&
+      largestShape.height <= 10
+    ) {
+      createCountryMarker(
+        id,
+        getCountryName(id),
+        largestShape.x + largestShape.width / 2,
+        largestShape.y + largestShape.height / 2,
+        2.5
+      );
+    }
+  });
+}
+
+function registerAllCountries() {
+  ISO_COUNTRIES.forEach(code => {
+    const existingId =
+      registeredCountryIds.get(code);
+
+    const name =
+      officialNames[code] || englishNames.of(code);
+
+    const id = existingId || code;
+
+    if (!countryNames.has(id)) {
+      countryNames.set(id, name);
+    }
+
+    if (!countryGroups.has(id)) {
+      countryGroups.set(id, []);
+    }
+
+    registeredCountryIds.set(code, id);
+
+    SEARCH_ALIASES[id] = [
+      ...(SEARCH_ALIASES[id] || []),
+      ...(SEARCH_ALIASES[code] || []),
+      code,
+      name,
+      englishNames.of(code),
+      japaneseNames.of(code)
+    ];
+  });
+}
+
+function migrateCountryData() {
+  const oldIds = new Set([
+    ...visitedCountries,
+    ...Object.keys(trips),
+    ...Object.keys(countryColors)
+  ]);
+
+  const oldVisited = [...visitedCountries];
+  const oldTrips = { ...trips };
+  const oldColors = { ...countryColors };
+
+  let changed = false;
+
+  oldIds.forEach(oldId => {
+    const code = resolveCountryCode(oldId);
+
+    if (!code) return;
+
+    const newId =
+      registeredCountryIds.get(code);
+
+    if (!newId || newId === oldId) return;
+
+    if (visitedCountries.includes(oldId)) {
+      visitedCountries =
+        visitedCountries.filter(id => id !== oldId);
+
+      visitedCountries.push(newId);
+    }
+
+    if (trips[oldId]) {
+      trips[newId] = [
+        ...getTripRecords(newId),
+        ...getTripRecords(oldId)
+      ];
+
+      delete trips[oldId];
+    }
+
+    if (countryColors[oldId]) {
+      if (!countryColors[newId]) {
+        countryColors[newId] = countryColors[oldId];
+      }
+
+      delete countryColors[oldId];
+    }
+
+    changed = true;
+  });
+
+  visitedCountries = [
+    ...new Set(visitedCountries)
+  ];
+
+  if (changed && !saveData()) {
+    visitedCountries = oldVisited;
+    trips = oldTrips;
+    countryColors = oldColors;
+
+    console.warn('Country data migration failed.');
+  }
+}
+
+function getSVGPoint(x, y) {
+  const point = svgRoot.createSVGPoint();
+
+  point.x = x;
+  point.y = y;
+
+  const matrix = svgRoot.getScreenCTM();
+
+  return matrix
+    ? point.matrixTransform(matrix.inverse())
+    : point;
+}
+
+function setupMapControls() {
+  svgRoot.style.touchAction = 'none';
+
+  const pointers = new Map();
+
+  let previousPinchDistance = null;
+  let gestureMoved = false;
+
+  svgRoot.addEventListener(
+    'wheel',
+    event => {
+      event.preventDefault();
+
+      const point = getSVGPoint(
+        event.clientX, event.clientY
+      );
+
+      zoomMap(
+        event.deltaY < 0 ? 0.85 : 1.15,
+        point.x,
+        point.y
+      );
+    },
+    { passive: false }
+  );
+
+  svgRoot.addEventListener('pointerdown', event => {
+    if (
+      event.pointerType === 'mouse' &&
+      event.button !== 0
+    ) {
+      return;
+    }
+
+    if (!pointers.size) {
+      gestureMoved = false;
+      suppressClick = false;
+    }
+
+    pointers.set(event.pointerId, {
+      x: event.clientX,
+      y: event.clientY
+    });
+
+    dragState = {
+      x: event.clientX,
+      y: event.clientY,
+      viewX: currentView.x,
+      viewY: currentView.y
+    };
+
+    if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+
+      previousPinchDistance = Math.hypot(
+        a.x - b.x, a.y - b.y
+      );
+
+      gestureMoved = true;
+      suppressClick = true;
+    }
+  });
+
+  svgRoot.addEventListener('pointermove', event => {
+    if (!pointers.has(event.pointerId)) return;
+
+    pointers.set(event.pointerId, {
+      x: event.clientX,
+      y: event.clientY
+    });
+
+    if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+
+      const distance = Math.hypot(
+        a.x - b.x, a.y - b.y
+      );
+
+      const center = getSVGPoint(
+        (a.x + b.x) / 2,
+        (a.y + b.y) / 2
+      );
+
+      if (previousPinchDistance && distance > 0) {
+        zoomMap(
+          previousPinchDistance / distance,
+          center.x,
+          center.y
+        );
+      }
+
+      previousPinchDistance = distance;
+
+      gestureMoved = true;
+      suppressClick = true;
+
+      return;
+    }
+
+    if (!dragState) return;
+
+    const dx = event.clientX - dragState.x;
+    const dy = event.clientY - dragState.y;
+
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+      gestureMoved = true;
+      suppressClick = true;
+    }
+
+    if (!gestureMoved) return;
+
+    const matrix = svgRoot.getScreenCTM();
+
+    if (!matrix) return;
+
+    const scaleX = Math.hypot(matrix.a, matrix.b);
+    const scaleY = Math.hypot(matrix.c, matrix.d);
+
+    currentView.x =
+      dragState.viewX - dx / scaleX;
+
+    currentView.y =
+      dragState.viewY - dy / scaleY;
+
+    applyMapView();
+  });
+
+  function stopPointer(event) {
+    pointers.delete(event.pointerId);
+
+    previousPinchDistance = null;
+
+    if (pointers.size === 1) {
+      const remaining =
+        [...pointers.values()][0];
+
+      dragState = {
+        x: remaining.x,
+        y: remaining.y,
+        viewX: currentView.x,
+        viewY: currentView.y
+      };
+
+      return;
+    }
+
+    dragState = null;
+
+    if (gestureMoved) {
+      suppressClick = true;
+
+      setTimeout(() => {
+        suppressClick = false;
+      }, 300);
+    }
+  }
+
+  svgRoot.ownerDocument.addEventListener(
+    'pointerup', stopPointer
+  );
+
+  svgRoot.ownerDocument.addEventListener(
+    'pointercancel', stopPointer
+  );
+}
+
+function initializeMap() {
+  if (mapInitialized || !mapObject) return;
+
+  const svgDocument = mapObject.contentDocument;
+
+  if (!svgDocument) return;
+
+  svgRoot = svgDocument.querySelector('svg');
+
+  if (!svgRoot) return;
+
+  mapInitialized = true;
+
+  const viewBox = svgRoot.viewBox.baseVal;
+
+  if (viewBox.width && viewBox.height) {
+    originalView = {
+      x: viewBox.x,
+      y: viewBox.y,
+      w: viewBox.width,
+      h: viewBox.height
+    };
+  }
+
+  currentView = { ...originalView };
+
+  countryGroups = new Map();
+  countryNames = new Map();
+
+  registeredCountryIds.clear();
+
+  const shapes = [
+    ...svgRoot.querySelectorAll(
+      'path, circle[data-country]'
+    )
+  ];
+
+  const nameToId = new Map();
+
+  shapes.forEach(shape => {
+    const id = shape.getAttribute('id');
+
+    const name =
+      shape.getAttribute('name') ||
+      shape.getAttribute('data-name');
+
+    if (id && name) {
+      nameToId.set(
+        normalizeCountryName(name), id
+      );
+    }
+  });
+
+
+  shapes.forEach(shape => {
+    if (
+      shape.closest('defs, clipPath, mask, pattern')
+    ) {
+      return;
+    }
+
+    const rawId = shape.getAttribute('id');
+
+    const rawCountry =
+      shape.getAttribute('data-country');
+
+    const rawName =
+      shape.getAttribute('name') ||
+      shape.getAttribute('data-name') ||
+      shape.getAttribute('aria-label') ||
+      shape.querySelector('title')?.textContent ||
+      rawCountry ||
+      rawId;
+
+    if (!rawName) return;
+
+    const code =
+      resolveCountryCode(rawId) ||
+      resolveCountryCode(rawCountry) ||
+      resolveCountryCode(rawName);
+
+    const name = code
+      ? (officialNames[code] || englishNames.of(code))
+      : (SHORT_NAMES[rawName] || rawName);
+
+    const id =
+      registeredCountryIds.get(code) ||
+      nameToId.get(normalizeCountryName(rawName)) ||
+      rawId ||
+      rawCountry ||
+      rawName;
+
+    registerCountryShape(shape, id, name);
+  });
+
+
+  registerAllCountries();
+
+  migrateCountryData();
+
+  addSmallCountryMarkers();
+
+  setupMapControls();
+
+  refreshAll();
+
+
+  const missingMapCountries =
+    ISO_COUNTRIES.filter(code => {
+      const id = registeredCountryIds.get(code);
+
+      return !countryGroups.get(id)?.length;
+    });
+
+  console.log(
+    'Registered countries:',
+    registeredCountryIds.size
+  );
+
+  console.log(
+    'Expected countries:',
+    WORLD_COUNTRIES
+  );
+
+  console.log(
+    'Countries without map shapes:',
+    missingMapCountries
+  );
+
+  console.log('TRAVEL LOG is ready!');
+}
+
 
 if (mapObject) {
   mapObject.addEventListener('load', initializeMap);
 
-  if (mapObject.contentDocument &&
-      mapObject.contentDocument.readyState === 'complete') {
+  if (
+    mapObject.contentDocument &&
+    mapObject.contentDocument.readyState === 'complete'
+  ) {
     initializeMap();
   }
 }
+/* DIARY TOP ACTION BUTTONS */
 
-updateStats();
-renderHomeTrips();
+const topDiaryEdit = $('diary-edit');
+const topDiaryDelete = $('diary-delete');
+const topDiaryCancel = $('diary-cancel');
 
-console.log('TRAVEL LOG is ready!');
+let currentDiaryId = null;
+let currentDiaryRecord = null;
+
+/* SHOW ACTION BUTTONS */
+
+function updateDiaryActions(mode) {
+  topDiaryEdit.hidden = mode !== 'view';
+  topDiaryDelete.hidden = mode !== 'view';
+  topDiaryCancel.hidden = mode !== 'edit';
+
+  diaryEditButton.hidden = true;
+}
+
+/* EXTEND DIARY VIEWER */
+
+const originalOpenDiaryViewer = openDiaryViewer;
+
+openDiaryViewer = function(id, trip) {
+  originalOpenDiaryViewer(id, trip);
+
+  currentDiaryId = id;
+  currentDiaryRecord = trip;
+
+  updateDiaryActions('view');
+};
+
+/* EXTEND DIARY EDITOR */
+
+const originalOpenDiaryEditor = openDiaryEditor;
+
+openDiaryEditor = function(id, name, tripIndex = null) {
+  if (
+    tripIndex !== null &&
+    !getTripRecords(id)[tripIndex]
+  ) {
+    return;
+  }
+
+  originalOpenDiaryEditor(id, name, tripIndex);
+
+  currentDiaryId = id;
+
+  currentDiaryRecord = tripIndex !== null
+    ? getTripRecords(id)[tripIndex]
+    : null;
+
+  updateDiaryActions(
+    tripIndex !== null ? 'edit' : 'create'
+  );
+};
+
+/* EDIT SAVED DIARY */
+
+topDiaryEdit.addEventListener('click', () => {
+  if (!currentDiaryId || !currentDiaryRecord) return;
+
+  const index = getTripRecords(currentDiaryId)
+    .indexOf(currentDiaryRecord);
+
+  if (index < 0) return;
+
+  openDiaryEditor(
+    currentDiaryId,
+    getCountryName(currentDiaryId),
+    index
+  );
+});
+
+/* CANCEL EDITING */
+
+topDiaryCancel.addEventListener('click', () => {
+  if (editorLoading) return;
+
+  if (!currentDiaryId || !currentDiaryRecord) return;
+
+  if (!confirm('Discard unsaved changes?')) return;
+
+  openDiaryViewer(
+    currentDiaryId,
+    currentDiaryRecord
+  );
+});
+
+/* DELETE SAVED DIARY */
+
+topDiaryDelete.addEventListener('click', () => {
+  if (!currentDiaryId || !currentDiaryRecord) return;
+
+  const id = currentDiaryId;
+  const records = getTripRecords(id);
+  const index = records.indexOf(currentDiaryRecord);
+
+  if (index < 0) return;
+
+  const confirmed = confirm(
+    'Are you sure you want to delete this memory?'
+  );
+
+  if (!confirmed) return;
+
+  const oldRecords = [...records];
+
+  trips[id] = records.filter((_, i) => i !== index);
+
+  if (!trips[id].length) {
+    delete trips[id];
+  }
+
+  if (!saveData()) {
+    trips[id] = oldRecords;
+    alert('Failed to delete this memory.');
+    return;
+  }
+
+  currentDiaryId = null;
+  currentDiaryRecord = null;
+
+  editorCountryId = null;
+  editorTripIndex = null;
+  editorPhotos = [];
+
+  hideModal(diaryViewer);
+
+  refreshAll();
+});
