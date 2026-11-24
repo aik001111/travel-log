@@ -97,6 +97,8 @@ let colorCountryName = '';
 let selectedColor = COLORS[0];
 
 let editorCountryId = null;
+let viewerRecord = null;
+let editingRecord = null;
 let editorPhotos = [];
 let editorLoading = false;
 let travelSortMode = 'updated-new';
@@ -609,9 +611,20 @@ function renderDiaryPhotos(photos, editing = false) {
     `${photos.length} / 12 photos`;
 }
 
-function openDiaryEditor(id, name) {
+function openDiaryEditor(id, name, trip = null) {
+  editingRecord = trip;
+  viewerRecord = null;
+
+  $('diary-edit').hidden = true;
+  $('diary-delete').hidden = true;
+  $('diary-cancel').hidden = false;
+
+  $('editor-save').textContent = trip
+    ? 'Save Changes'
+    : 'Save My Memories';
+
   editorCountryId = id;
-  editorPhotos = [];
+  editorPhotos = trip ? [...tripPhotos(trip)] : [];
   editorLoading = false;
 
   $('viewer-country').textContent =
@@ -619,31 +632,44 @@ function openDiaryEditor(id, name) {
 
   applyDiaryColor(id);
 
-  $('editor-start').value = '';
-  $('editor-end').value = '';
-  $('editor-city').value = '';
-  $('editor-text').value = '';
+  $('editor-start').value = trip?.start || '';
+  $('editor-end').value = trip?.end || '';
+  $('editor-city').value = trip?.city || '';
+  $('editor-text').value = trip?.diary || '';
+
   $('editor-photos').value = '';
   $('editor-message').textContent = '';
   $('editor-save').disabled = false;
 
   setDiaryEditMode(true);
-  renderDiaryPhotos([], true);
+  renderDiaryPhotos(editorPhotos, true);
   showModal(diaryViewer);
 }
 
+
 function openDiaryViewer(id, trip) {
   if (!trip) return;
+
+  viewerRecord = { id, trip };
+  editingRecord = null;
+
+  $('diary-edit').hidden = false;
+  $('diary-delete').hidden = false;
+  $('diary-cancel').hidden = true;
 
   editorCountryId = null;
   editorPhotos = [];
   editorLoading = false;
 
-  $('viewer-country').textContent = getCountryName(id);
+  $('viewer-country').textContent =
+    getCountryName(id);
+
   $('viewer-date').textContent =
     `${trip.start || ''} ～ ${trip.end || ''}`;
+
   $('viewer-city').textContent =
     trip.city ? '📍 ' + trip.city : '';
+
   $('viewer-text').textContent =
     trip.diary || 'Memories made along the way.';
 
@@ -703,14 +729,20 @@ $('editor-save').addEventListener('click', () => {
 
   const days = calculateDays(start, end);
 
-  if (!Number.isFinite(days) || days < 1 || days > 3650) {
+  if (
+    !Number.isFinite(days) ||
+    days < 1 ||
+    days > 3650
+  ) {
     message.textContent =
       '旅行開始日と終了日を正しく入力してください。';
     return;
   }
 
   if (!diary) {
-    message.textContent = '日記の本文を入力してください。';
+    message.textContent =
+      '日記の本文を入力してください。';
+
     $('editor-text').focus();
     return;
   }
@@ -718,20 +750,43 @@ $('editor-save').addEventListener('click', () => {
   const now = new Date().toISOString();
 
   const newTrip = {
+    ...(editingRecord || {}),
     start,
     end,
     city,
     diary,
     photo: editorPhotos[0] || '',
     photos: [...editorPhotos],
-    createdAt: now,
+
+    createdAt:
+      editingRecord?.createdAt ||
+      editingRecord?.updatedAt ||
+      editingRecord?.start ||
+      now,
+
     updatedAt: now
   };
 
   const oldRecords = [...getTripRecords(id)];
   const oldVisited = [...visitedCountries];
 
-  trips[id] = [...oldRecords, newTrip];
+  const editIndex = editingRecord
+    ? oldRecords.indexOf(editingRecord)
+    : -1;
+
+  if (editingRecord && editIndex < 0) {
+    message.textContent =
+      '編集対象の日記が見つかりません。';
+    return;
+  }
+
+  // 既存の日記を編集する場合は上書き
+  // 新規作成の場合は新しく追加
+  trips[id] = editingRecord
+    ? oldRecords.map((record, index) =>
+        index === editIndex ? newTrip : record
+      )
+    : [...oldRecords, newTrip];
 
   if (!visitedCountries.includes(id)) {
     visitedCountries.push(id);
@@ -740,8 +795,10 @@ $('editor-save').addEventListener('click', () => {
   if (!saveData()) {
     trips[id] = oldRecords;
     visitedCountries = oldVisited;
+
     message.textContent =
       '保存できませんでした。写真の容量や枚数を減らしてください。';
+
     return;
   }
 
@@ -749,18 +806,95 @@ $('editor-save').addEventListener('click', () => {
   openDiaryViewer(id, newTrip);
 });
 
-function closeDiaryViewer() {
-  if (editorLoading) {
-    alert('写真の読み込みが終わるまでお待ちください。');
+/* EDIT SAVED MEMORIES */
+
+$('diary-edit').addEventListener('click', () => {
+  if (!viewerRecord) return;
+
+  const { id, trip } = viewerRecord;
+
+  openDiaryEditor(
+    id,
+    getCountryName(id),
+    trip
+  );
+});
+
+
+/* CANCEL EDITING */
+
+$('diary-cancel').addEventListener('click', () => {
+  if (editorLoading) return;
+
+  if (!editingRecord) {
+    closeDiaryViewer();
     return;
   }
 
-  if (editorCountryId &&
-      !confirm('保存せずに日記を閉じますか？')) {
+  if (!confirm('変更を保存せずに戻りますか？')) {
+    return;
+  }
+
+  openDiaryViewer(
+    editorCountryId,
+    editingRecord
+  );
+});
+
+
+/* DELETE SAVED MEMORY */
+
+$('diary-delete').addEventListener('click', () => {
+  if (!viewerRecord) return;
+
+  const { id, trip } = viewerRecord;
+  const old = getTripRecords(id);
+
+  if (!old.includes(trip)) return;
+
+  if (!confirm('この旅行日記を削除しますか？')) {
+    return;
+  }
+
+  const remaining = old.filter(
+    record => record !== trip
+  );
+
+  if (remaining.length) {
+    trips[id] = remaining;
+  } else {
+    delete trips[id];
+  }
+
+  if (!saveData()) {
+    trips[id] = old;
+    alert('削除できませんでした。');
+    return;
+  }
+
+  closeDiaryViewer();
+  refreshAll();
+});
+
+function closeDiaryViewer() {
+  if (editorLoading) {
+    alert(
+      '写真の読み込みが終わるまでお待ちください。'
+    );
+    return;
+  }
+
+  if (
+    editorCountryId &&
+    !confirm('保存せずに日記を閉じますか？')
+  ) {
     return;
   }
 
   editorCountryId = null;
+  editingRecord = null;
+  viewerRecord = null;
+
   hideModal(diaryViewer);
 }
 

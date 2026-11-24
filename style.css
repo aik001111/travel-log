@@ -1264,3 +1264,64 @@ main {
     margin-top: 20px;
   }
 }
+
+/* =========================================
+   SAVED MEMORIES - EDITING CONTROLS
+========================================= */
+
+.diary-edit-actions {
+  position: absolute;
+  top: 14px;
+  right: 70px;
+  z-index: 11;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.diary-edit-actions button {
+  min-height: 36px;
+  padding: 6px 14px;
+  border: 1px solid var(--diary-accent);
+  border-radius: 20px;
+  background: white;
+  color: #514650;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#diary-delete {
+  color: #a74d60;
+}
+
+.diary-book .diary-page {
+  padding-top: 72px;
+}
+
+
+/* =========================================
+   MOBILE RESPONSIVE
+========================================= */
+
+@media (max-width: 768px) {
+
+  .diary-edit-actions {
+    right: 70px;
+    top: 12px;
+  }
+
+  .diary-edit-actions button {
+    min-height: 44px;
+    padding: 6px 12px;
+  }
+
+  .diary-book .diary-page-left {
+    padding-top: 76px;
+  }
+
+  .diary-book .diary-page-right {
+    padding-top: 35px;
+  }
+
+}
